@@ -3,6 +3,7 @@ services:
     name: resume-optimizer-api
     env: python
     buildCommand: |
+      apt-get update && apt-get install -y build-essential
       python -m pip install --upgrade pip
       pip install -r requirements.txt
     startCommand: python -m gunicorn wsgi:app --bind 0.0.0.0:$PORT --log-level info --timeout 120
