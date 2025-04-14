@@ -1,7 +1,5 @@
 from app import app
-from hypercorn.config import Config
-from hypercorn.asyncio import serve
-import asyncio
+from asgiref.wsgi import WsgiToAsgi
 
-# Create an ASGI application
-asgi_app = app 
+# Create an ASGI application by wrapping the Flask WSGI app
+asgi_app = WsgiToAsgi(app) 
