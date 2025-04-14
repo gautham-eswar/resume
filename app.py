@@ -129,6 +129,14 @@ def handle_error(error: Exception) -> Tuple[Dict[str, Any], int]:
     logger.error(f"Unexpected error: {str(error)}", exc_info=True)
     return create_response(error=f"Internal server error: {str(error)}", status=500)
 
+@app.route('/')
+def index():
+    """Root endpoint"""
+    return jsonify({
+        "status": "ok",
+        "message": "Resume Optimizer API is running"
+    })
+
 @app.route('/api/health', methods=['GET'])
 def health_check() -> Tuple[Dict[str, Any], int]:
     """Health check endpoint"""
@@ -248,6 +256,7 @@ def download_resume(resume_id: str, format: str) -> Union[Tuple[Dict[str, Any], 
         logger.error(f"Error downloading resume: {str(e)}", exc_info=True)
         return create_response(error=f"Error downloading resume: {str(e)}", status=500)
 
+# Only run the app if this file is being run directly
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     if os.getenv('FLASK_ENV') == 'production':
