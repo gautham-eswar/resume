@@ -6,7 +6,7 @@ services:
       apt-get update && apt-get install -y build-essential
       python -m pip install --upgrade pip
       pip install -r requirements.txt
-    startCommand: python -m uvicorn asgi:asgi_app --host 0.0.0.0 --port $PORT --workers 2 --timeout-keep-alive 120 --log-level info
+    startCommand: hypercorn asgi:asgi_app --bind 0.0.0.0:$PORT --workers 2
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0

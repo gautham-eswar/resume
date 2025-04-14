@@ -1,5 +1,7 @@
 from app import app
-from asgiref.wsgi import WsgiToAsgi
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
+import asyncio
 
 # Create an ASGI application
-asgi_app = WsgiToAsgi(app.wsgi_app) 
+asgi_app = app 
