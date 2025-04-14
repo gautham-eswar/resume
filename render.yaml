@@ -14,8 +14,20 @@ services:
         sync: false
       - key: FLASK_ENV
         value: production
+      - key: FLASK_APP
+        value: app.py
+      - key: FRONTEND_URL
+        value: "*"
       - key: PYTHONPATH
         value: .
+      - key: LOG_LEVEL
+        value: INFO
+      - key: UPLOAD_FOLDER
+        value: /tmp/uploads
+      - key: OUTPUT_FOLDER
+        value: /tmp/output
+      - key: MAX_CONTENT_LENGTH
+        value: "16777216"
       - key: WEB_CONCURRENCY
         value: "2"
     healthCheckPath: /
