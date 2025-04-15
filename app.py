@@ -339,25 +339,46 @@ def format_optimization_results(pipeline):
         else:
             keywords_by_relevance['low'].append(kw)
     
-    # Create markdown report
+    # Create high relevance keywords section
+    high_relevance_section = ""
+    for kw in keywords_by_relevance['high']:
+        high_relevance_section += f"- **{kw['keyword']}** - {kw['context']}\n"
+    
+    # Create medium relevance keywords section
+    medium_relevance_section = ""
+    for kw in keywords_by_relevance['medium']:
+        medium_relevance_section += f"- **{kw['keyword']}** - {kw['context']}\n"
+    
+    # Create keyword gap analysis table
+    gap_analysis_table = ""
+    for match in pipeline.semantic_matches.get('similarity_results', [])[:10]:
+        presence = "Yes" if match['similarity_score'] > 0.75 else "No"
+        gap_analysis_table += f"| **{match['keyword']}** | {presence} | {match['similarity_score']:.2f} |\n"
+    
+    # Create bullet point improvements section
+    improvements_section = ""
+    for mod in pipeline.modifications[:5]:
+        improvements_section += f"### Original:\n{mod['original_bullet']}\n\n### Enhanced:\n{mod['enhanced_bullet']}\n\n"
+    
+    # Create final report
     report = f"""
 ## KEY SKILLS ANALYSIS
 
 ### Must-Have Skills (High Relevance)
-{"".join([f"- **{kw['keyword']}** - {kw['context']}\n" for kw in keywords_by_relevance['high']])}
+{high_relevance_section}
 
 ### Nice-to-Have Skills (Medium Relevance)
-{"".join([f"- **{kw['keyword']}** - {kw['context']}\n" for kw in keywords_by_relevance['medium']])}
+{medium_relevance_section}
 
 ## KEYWORD GAP ANALYSIS
 
 | Skill | Present in Resume | Similarity Score |
 |-------|-------------------|-----------------|
-{"".join([f"| **{match['keyword']}** | {'Yes' if match['similarity_score'] > 0.75 else 'No'} | {match['similarity_score']:.2f} |\n" for match in pipeline.semantic_matches.get('similarity_results', [])[:10]])}
+{gap_analysis_table}
 
 ## RECOMMENDED BULLET POINT IMPROVEMENTS
 
-{"".join([f"### Original:\n{mod['original_bullet']}\n\n### Enhanced:\n{mod['enhanced_bullet']}\n\n" for mod in pipeline.modifications[:5]])}
+{improvements_section}
 
 ## GENERAL RECOMMENDATIONS
 
@@ -382,15 +403,25 @@ def format_keywords_only_results(keywords_data):
         else:
             keywords_by_relevance['low'].append(kw)
     
-    # Create markdown report
+    # Create high relevance keywords section
+    high_relevance_section = ""
+    for kw in keywords_by_relevance['high']:
+        high_relevance_section += f"- **{kw['keyword']}** - {kw['context']}\n"
+    
+    # Create medium relevance keywords section
+    medium_relevance_section = ""
+    for kw in keywords_by_relevance['medium']:
+        medium_relevance_section += f"- **{kw['keyword']}** - {kw['context']}\n"
+    
+    # Create final report
     report = f"""
 ## KEY SKILLS ANALYSIS
 
 ### Must-Have Skills (High Relevance)
-{"".join([f"- **{kw['keyword']}** - {kw['context']}\n" for kw in keywords_by_relevance['high']])}
+{high_relevance_section}
 
 ### Nice-to-Have Skills (Medium Relevance)
-{"".join([f"- **{kw['keyword']}** - {kw['context']}\n" for kw in keywords_by_relevance['medium']])}
+{medium_relevance_section}
 
 ## RECOMMENDED IMPROVEMENTS
 
