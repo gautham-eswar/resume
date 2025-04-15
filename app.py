@@ -256,6 +256,10 @@ def download_resume(resume_id: str, format: str) -> Union[Tuple[Dict[str, Any], 
         logger.error(f"Error downloading resume: {str(e)}", exc_info=True)
         return create_response(error=f"Error downloading resume: {str(e)}", status=500)
 
+# ASGI wrapper for deployment
+import asgiref.wsgi
+app = asgiref.wsgi.WsgiToAsgi(app.wsgi_app)
+
 # Only run the app if this file is being run directly
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
