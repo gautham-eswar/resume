@@ -138,7 +138,8 @@ def index():
         "status": "ok",
         "message": "Resume Optimizer API is running",
         "endpoints": [
-            {"path": "/api/optimize", "method": "POST", "description": "Optimize resume with job description"},
+            {"path": "/api/optimize", "method": "POST", "description": "Optimize resume with job description (API path)"},
+            {"path": "/optimize", "method": "POST", "description": "Optimize resume with job description (alternate path)"},
             {"path": "/api/upload", "method": "POST", "description": "Upload and parse a resume"},
             {"path": "/api/download/<resume_id>/<format>", "method": "GET", "description": "Download enhanced resume"}
         ]
@@ -460,6 +461,11 @@ def download_resume(resume_id: str, format: str) -> Union[Tuple[Dict[str, Any], 
     except Exception as e:
         logger.error(f"Error downloading resume: {str(e)}", exc_info=True)
         return create_response(error=f"Error downloading resume: {str(e)}", status=500)
+
+@app.route('/optimize', methods=['POST', 'OPTIONS'])
+def optimize_resume_alt():
+    """Alternative endpoint for optimize - mirrors /api/optimize"""
+    return optimize_resume()
 
 # ASGI wrapper for deployment
 import asgiref.wsgi
