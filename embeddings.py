@@ -43,7 +43,7 @@ class SemanticMatcher:
         if not self.api_key:
             raise ValueError("OpenAI API key is required. Provide it as a parameter or set OPENAI_API_KEY environment variable.")
         
-        # Initialize OpenAI client
+        # Initialize OpenAI client with the new format
         self.client = OpenAI(api_key=self.api_key)
         
         # Default similarity threshold
