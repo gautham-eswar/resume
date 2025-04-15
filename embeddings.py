@@ -43,8 +43,15 @@ class SemanticMatcher:
         if not self.api_key:
             raise ValueError("OpenAI API key is required. Provide it as a parameter or set OPENAI_API_KEY environment variable.")
         
-        # Initialize OpenAI client with the new format
-        self.client = OpenAI(api_key=self.api_key)
+        # Initialize OpenAI client
+        try:
+            # Try modern approach
+            self.client = OpenAI(api_key=self.api_key)
+        except TypeError:
+            # Fall back to older approach for compatibility
+            import openai
+            openai.api_key = self.api_key
+            self.client = openai
         
         # Default similarity threshold
         self.similarity_threshold = 0.75
@@ -443,11 +450,20 @@ class SemanticMatcher:
         Returns:
             list: Embedding vector
         """
-        response = self.client.embeddings.create(
-            input=text,
-            model="text-embedding-ada-002"
-        )
-        return response.data[0].embedding
+        try:
+            # New client approach
+            response = self.client.embeddings.create(
+                input=text,
+                model="text-embedding-ada-002"
+            )
+            return response.data[0].embedding
+        except AttributeError:
+            # Old API approach
+            response = self.client.Embedding.create(
+                input=text,
+                model="text-embedding-ada-002"
+            )
+            return response["data"][0]["embedding"]
     
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """

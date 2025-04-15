@@ -40,8 +40,15 @@ class KeywordExtractor:
         if not self.api_key:
             raise ValueError("OpenAI API key is required. Provide it as a parameter or set OPENAI_API_KEY environment variable.")
         
-        # Initialize OpenAI client with the new format
-        self.client = OpenAI(api_key=self.api_key)
+        # Initialize OpenAI client
+        try:
+            # Try modern approach
+            self.client = OpenAI(api_key=self.api_key)
+        except TypeError:
+            # Fall back to older approach for compatibility
+            import openai
+            openai.api_key = self.api_key
+            self.client = openai
         
     def extract_keywords(self, job_description: str) -> Dict[str, Any]:
         """
@@ -129,21 +136,40 @@ class KeywordExtractor:
         
         try:
             # Make the API call with specific JSON formatting instructions
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": "You are a precise keyword extractor for job descriptions. Extract keywords with context and output valid JSON only."
-                    },
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,  # Low temperature for consistent results
-                response_format={"type": "json_object"}  # Request JSON format
-            )
-            
-            # Extract the response content
-            content = response.choices[0].message.content.strip()
+            try:
+                # New API format
+                response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system", 
+                            "content": "You are a precise keyword extractor for job descriptions. Extract keywords with context and output valid JSON only."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.1,  # Low temperature for consistent results
+                    response_format={"type": "json_object"}  # Request JSON format
+                )
+                
+                # Extract the response content
+                content = response.choices[0].message.content.strip()
+            except AttributeError:
+                # Old API format
+                response = self.client.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system", 
+                            "content": "You are a precise keyword extractor for job descriptions. Extract keywords with context and output valid JSON only."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.1,  # Low temperature for consistent results
+                    response_format={"type": "json_object"}  # Request JSON format
+                )
+                
+                # Extract the response content
+                content = response["choices"][0]["message"]["content"].strip()
             
             # Parse the JSON response
             try:

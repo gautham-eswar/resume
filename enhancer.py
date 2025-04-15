@@ -43,8 +43,15 @@ class ResumeEnhancer:
         if not self.api_key:
             raise ValueError("OpenAI API key is required. Provide it as a parameter or set OPENAI_API_KEY environment variable.")
         
-        # Initialize OpenAI client with the new format
-        self.client = OpenAI(api_key=self.api_key)
+        # Initialize OpenAI client
+        try:
+            # Try modern approach
+            self.client = OpenAI(api_key=self.api_key)
+        except TypeError:
+            # Fall back to older approach for compatibility
+            import openai
+            openai.api_key = self.api_key
+            self.client = openai
         
         # Track which bullets have been modified
         self.modified_bullets = set()
@@ -265,18 +272,34 @@ class ResumeEnhancer:
         
         try:
             # Call OpenAI API
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a professional resume writer specializing in keyword optimization while maintaining factual accuracy."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,  # Lower temperature for more consistent output
-                max_tokens=512
-            )
-            
-            # Extract the enhanced bullet
-            enhanced_bullet = response.choices[0].message.content.strip()
+            try:
+                # New API format
+                response = self.client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a professional resume writer specializing in keyword optimization while maintaining factual accuracy."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,  # Lower temperature for more consistent output
+                    max_tokens=512
+                )
+                
+                # Extract the enhanced bullet
+                enhanced_bullet = response.choices[0].message.content.strip()
+            except AttributeError:
+                # Old API format
+                response = self.client.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a professional resume writer specializing in keyword optimization while maintaining factual accuracy."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,  # Lower temperature for more consistent output
+                    max_tokens=512
+                )
+                
+                # Extract the enhanced bullet
+                enhanced_bullet = response["choices"][0]["message"]["content"].strip()
             
             # Clean up the response (remove quotes if present)
             if enhanced_bullet.startswith('"') and enhanced_bullet.endswith('"'):
