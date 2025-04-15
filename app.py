@@ -15,6 +15,13 @@ from werkzeug.utils import secure_filename
 from typing import Dict, Any, Tuple, Union
 from dotenv import load_dotenv
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("app")
+
 # Load environment variables
 load_dotenv()
 
@@ -23,6 +30,14 @@ from optimizer import ResumeOptimizationPipeline
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Add detailed request logging
+@app.before_request
+def log_request_info():
+    logger.info(f"Request: {request.method} {request.path}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    if request.is_json:
+        logger.info(f"JSON Body: {request.json}")
 
 # Configure CORS for Lovable frontend
 FRONTEND_URL = os.getenv('FRONTEND_URL', '*')
@@ -34,19 +49,6 @@ CORS(app, resources={
         "expose_headers": ["Content-Type", "X-Total-Count"]
     }
 })
-
-# Configure logging based on environment
-if os.getenv('FLASK_ENV') == 'production':
-    logging.basicConfig(
-        level=logging.WARNING,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-else:
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-logger = logging.getLogger(__name__)
 
 # Configure uploads with environment-specific paths
 if os.getenv('FLASK_ENV') == 'production':
@@ -134,7 +136,12 @@ def index():
     """Root endpoint"""
     return jsonify({
         "status": "ok",
-        "message": "Resume Optimizer API is running"
+        "message": "Resume Optimizer API is running",
+        "endpoints": [
+            {"path": "/api/optimize", "method": "POST", "description": "Optimize resume with job description"},
+            {"path": "/api/upload", "method": "POST", "description": "Upload and parse a resume"},
+            {"path": "/api/download/<resume_id>/<format>", "method": "GET", "description": "Download enhanced resume"}
+        ]
     })
 
 @app.route('/api/health', methods=['GET'])
