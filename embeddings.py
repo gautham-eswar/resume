@@ -43,15 +43,18 @@ class SemanticMatcher:
         if not self.api_key:
             raise ValueError("OpenAI API key is required. Provide it as a parameter or set OPENAI_API_KEY environment variable.")
         
-        # Initialize OpenAI client
+        # Initialize OpenAI client - Update this in all files that use OpenAI
         try:
-            # Try modern approach
+            # Try the newer approach
             self.client = OpenAI(api_key=self.api_key)
-        except TypeError:
-            # Fall back to older approach for compatibility
-            import openai
-            openai.api_key = self.api_key
-            self.client = openai
+        except TypeError as e:
+            if 'proxies' in str(e):
+                # Fallback for older OpenAI versions
+                import openai
+                openai.api_key = self.api_key
+                self.client = openai
+            else:
+                raise
         
         # Default similarity threshold
         self.similarity_threshold = 0.75

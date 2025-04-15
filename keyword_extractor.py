@@ -42,13 +42,16 @@ class KeywordExtractor:
         
         # Initialize OpenAI client
         try:
-            # Try modern approach
+            # Try the newer approach
             self.client = OpenAI(api_key=self.api_key)
-        except TypeError:
-            # Fall back to older approach for compatibility
-            import openai
-            openai.api_key = self.api_key
-            self.client = openai
+        except TypeError as e:
+            if 'proxies' in str(e):
+                # Fallback for older OpenAI versions
+                import openai
+                openai.api_key = self.api_key
+                self.client = openai
+            else:
+                raise
         
     def extract_keywords(self, job_description: str) -> Dict[str, Any]:
         """
