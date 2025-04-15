@@ -31,6 +31,9 @@ from optimizer import ResumeOptimizationPipeline
 # Initialize Flask app
 app = Flask(__name__)
 
+# Enable CORS for all routes
+CORS(app)
+
 # Add detailed request logging
 @app.before_request
 def log_request_info():
@@ -38,23 +41,6 @@ def log_request_info():
     logger.info(f"Headers: {dict(request.headers)}")
     if request.is_json:
         logger.info(f"JSON Body: {request.json}")
-
-# Configure CORS for Lovable frontend
-FRONTEND_URL = os.getenv('FRONTEND_URL', '*')
-CORS(app, resources={
-    r"/api/*": {
-        "origins": FRONTEND_URL,
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "expose_headers": ["Content-Type", "X-Total-Count"]
-    },
-    r"/optimize": {
-        "origins": FRONTEND_URL,
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "expose_headers": ["Content-Type", "X-Total-Count"]
-    }
-})
 
 # Configure uploads with environment-specific paths
 if os.getenv('FLASK_ENV') == 'production':
@@ -206,7 +192,9 @@ def optimize_resume() -> Tuple[Dict[str, Any], int]:
         # Parse request data
         data = request.get_json()
         if not data or 'jobDescription' not in data:
-            return jsonify({'error': 'Job description is required'}), 400
+            response = jsonify({'error': 'Job description is required'})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
         
         job_description = data['jobDescription']
         
@@ -253,7 +241,12 @@ def optimize_resume() -> Tuple[Dict[str, Any], int]:
         elif 'resumeId' in data and data['resumeId']:
             resume_id = data['resumeId']
             if not resume_store.get(resume_id):
-                return create_response(error="Resume not found. Please upload again.", status=404)
+                response = jsonify({
+                    'success': False,
+                    'error': "Resume not found. Please upload again."
+                })
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                return response, 404
             resume_file_path = resume_store.get(resume_id)['file_path']
             logger.info(f"Using previously uploaded resume with ID: {resume_id}")
         
@@ -321,17 +314,21 @@ def optimize_resume() -> Tuple[Dict[str, Any], int]:
             except:
                 logger.warning(f"Failed to delete temporary file: {resume_file_path}")
         
-        return jsonify(response_data)
+        response = jsonify(response_data)
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
         
     except Exception as e:
         import traceback
         logger.error(f"Error in optimization process: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({
+        response = jsonify({
             'success': False,
             'message': f'Error in optimization process: {str(e)}',
             'error_details': traceback.format_exc()
-        }), 500
+        })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
 # Helper function to format optimization results as markdown
 def format_optimization_results(pipeline):
@@ -471,11 +468,26 @@ def download_resume(resume_id: str, format: str) -> Union[Tuple[Dict[str, Any], 
 @app.route('/optimize', methods=['POST', 'OPTIONS'])
 def optimize_resume_alt():
     """Alternative endpoint for optimize - mirrors /api/optimize"""
+    # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
-        # Handle OPTIONS request (CORS preflight)
-        response = jsonify({'success': True})
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST')
         return response
-    return optimize_resume()
+    
+    # For POST requests, call the original optimize_resume function
+    result = optimize_resume()
+    
+    # Make sure the response has CORS headers
+    if isinstance(result, tuple):
+        response, status_code = result
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, status_code
+    else:
+        response = result
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
 
 # ASGI wrapper for deployment
 import asgiref.wsgi
