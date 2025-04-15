@@ -189,44 +189,211 @@ def upload_resume() -> Tuple[Dict[str, Any], int]:
 def optimize_resume() -> Tuple[Dict[str, Any], int]:
     """Optimize resume with job description"""
     try:
+        # Parse request data
         data = request.get_json()
+        if not data or 'jobDescription' not in data:
+            return jsonify({'error': 'Job description is required'}), 400
         
-        # Validate inputs
-        if not data:
-            return create_response(error="No data provided", status=400)
-            
-        resume_id = data.get('resumeId')
-        job_description = data.get('jobDescription')
+        job_description = data['jobDescription']
         
-        if not resume_id:
-            return create_response(error="Resume ID is required", status=400)
-        if not job_description:
-            return create_response(error="Job description is required", status=400)
-        if not resume_store.get(resume_id):
-            return create_response(error="Resume not found. Please upload again.", status=404)
-
-        # Get resume data and setup
-        resume_data = resume_store.get(resume_id)['data']
-        resume_file_path = resume_store.get(resume_id)['file_path']
-        output_dir = os.path.join(OUTPUT_FOLDER, resume_id)
+        # Log received data
+        logger.info(f"Received optimization request with job description of length: {len(job_description)}")
+        
+        # Handle resume URL if provided
+        resume_file_path = None
+        if 'resumeUrl' in data and data['resumeUrl']:
+            try:
+                # Download file from URL
+                resume_url = data['resumeUrl']
+                logger.info(f"Resume URL provided: {resume_url}")
+                
+                # Download the file
+                import requests
+                response = requests.get(resume_url)
+                if response.status_code == 200:
+                    # Save to temp file
+                    import tempfile
+                    
+                    # Determine file extension
+                    file_extension = '.pdf'  # Default
+                    if '.docx' in resume_url.lower():
+                        file_extension = '.docx'
+                    elif '.txt' in resume_url.lower():
+                        file_extension = '.txt'
+                    
+                    # Create temp dir if not exists
+                    temp_dir = os.path.join(tempfile.gettempdir(), 'resume_optimizer')
+                    os.makedirs(temp_dir, exist_ok=True)
+                    
+                    # Save file
+                    resume_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}{file_extension}")
+                    with open(resume_file_path, 'wb') as f:
+                        f.write(response.content)
+                    
+                    logger.info(f"Resume downloaded and saved to: {resume_file_path}")
+                else:
+                    logger.error(f"Failed to download resume: Status code {response.status_code}")
+            except Exception as e:
+                logger.error(f"Error downloading resume: {str(e)}")
+        # Check for resumeId if URL wasn't provided
+        elif 'resumeId' in data and data['resumeId']:
+            resume_id = data['resumeId']
+            if not resume_store.get(resume_id):
+                return create_response(error="Resume not found. Please upload again.", status=404)
+            resume_file_path = resume_store.get(resume_id)['file_path']
+            logger.info(f"Using previously uploaded resume with ID: {resume_id}")
+        
+        # Create output directory
+        import tempfile
+        import uuid
+        output_id = str(uuid.uuid4())
+        if 'resumeId' in data and data['resumeId'] and resume_store.get(data['resumeId']):
+            output_dir = os.path.join(OUTPUT_FOLDER, data['resumeId'])
+        else:
+            output_dir = os.path.join(tempfile.gettempdir(), 'resume_output', output_id)
         os.makedirs(output_dir, exist_ok=True)
-
-        # Run optimization
+        
+        # Initialize the optimization pipeline
         pipeline = ResumeOptimizationPipeline(verbose=True)
-        optimization_result = pipeline.run_pipeline(
-            resume_file_path=resume_file_path,
-            job_description_text=job_description,
-            output_dir=output_dir
-        )
-
-        return create_response(data={
-            'optimizationResult': optimization_result,
-            'outputDirectory': output_dir
-        })
-
+        
+        # Run the pipeline
+        if resume_file_path:
+            # Full optimization with resume
+            logger.info("Running full optimization pipeline with resume")
+            
+            summary = pipeline.run_pipeline(
+                resume_file_path=resume_file_path,
+                job_description_text=job_description,
+                output_dir=output_dir
+            )
+            
+            # Format response
+            response_data = {
+                'success': True,
+                'message': 'Resume optimization complete',
+                'optimizedContent': format_optimization_results(pipeline),
+                'statistics': summary['statistics'],
+                'analysis': {
+                    'keywords': pipeline.keywords_data['keywords'],
+                    'semantic_matches': pipeline.semantic_matches['similarity_results'],
+                    'modifications': pipeline.modifications
+                }
+            }
+        else:
+            # Keywords only (no resume)
+            logger.info("Running keyword extraction only (no resume provided)")
+            
+            # Extract keywords from job description
+            pipeline.keywords_data = pipeline.keyword_extractor.extract_keywords(job_description)
+            
+            # Format response for keywords only
+            response_data = {
+                'success': True,
+                'message': 'Job description analyzed (no resume provided)',
+                'optimizedContent': format_keywords_only_results(pipeline.keywords_data),
+                'statistics': {
+                    'keywords_extracted': len(pipeline.keywords_data['keywords']),
+                },
+                'analysis': {
+                    'keywords': pipeline.keywords_data['keywords']
+                }
+            }
+        
+        # Clean up if we downloaded from URL
+        if 'resumeUrl' in data and data['resumeUrl'] and resume_file_path and os.path.exists(resume_file_path):
+            try:
+                os.remove(resume_file_path)
+                logger.info(f"Deleted temporary file: {resume_file_path}")
+            except:
+                logger.warning(f"Failed to delete temporary file: {resume_file_path}")
+        
+        return jsonify(response_data)
+        
     except Exception as e:
-        logger.error(f"Error during optimization: {str(e)}", exc_info=True)
-        return create_response(error=f"Error optimizing resume: {str(e)}", status=500)
+        import traceback
+        logger.error(f"Error in optimization process: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'Error in optimization process: {str(e)}',
+            'error_details': traceback.format_exc()
+        }), 500
+
+# Helper function to format optimization results as markdown
+def format_optimization_results(pipeline):
+    # Group keywords by relevance
+    keywords_by_relevance = {'high': [], 'medium': [], 'low': []}
+    for kw in pipeline.keywords_data['keywords']:
+        relevance = kw['relevance_score']
+        if relevance >= 8:
+            keywords_by_relevance['high'].append(kw)
+        elif relevance >= 5:
+            keywords_by_relevance['medium'].append(kw)
+        else:
+            keywords_by_relevance['low'].append(kw)
+    
+    # Create markdown report
+    report = f"""
+## KEY SKILLS ANALYSIS
+
+### Must-Have Skills (High Relevance)
+{"".join([f"- **{kw['keyword']}** - {kw['context']}\n" for kw in keywords_by_relevance['high']])}
+
+### Nice-to-Have Skills (Medium Relevance)
+{"".join([f"- **{kw['keyword']}** - {kw['context']}\n" for kw in keywords_by_relevance['medium']])}
+
+## KEYWORD GAP ANALYSIS
+
+| Skill | Present in Resume | Similarity Score |
+|-------|-------------------|-----------------|
+{"".join([f"| **{match['keyword']}** | {'Yes' if match['similarity_score'] > 0.75 else 'No'} | {match['similarity_score']:.2f} |\n" for match in pipeline.semantic_matches.get('similarity_results', [])[:10]])}
+
+## RECOMMENDED BULLET POINT IMPROVEMENTS
+
+{"".join([f"### Original:\n{mod['original_bullet']}\n\n### Enhanced:\n{mod['enhanced_bullet']}\n\n" for mod in pipeline.modifications[:5]])}
+
+## GENERAL RECOMMENDATIONS
+
+1. Tailor your skills section to highlight the must-have skills identified above
+2. Quantify your achievements with specific metrics where possible
+3. Use industry-specific terminology that matches the job description
+4. Focus on recent and relevant experiences that align with the job requirements
+5. Ensure your resume passes ATS scanning by using exact keyword matches
+"""
+    return report
+
+# Helper function to format keywords-only results
+def format_keywords_only_results(keywords_data):
+    # Group keywords by relevance
+    keywords_by_relevance = {'high': [], 'medium': [], 'low': []}
+    for kw in keywords_data['keywords']:
+        relevance = kw['relevance_score']
+        if relevance >= 8:
+            keywords_by_relevance['high'].append(kw)
+        elif relevance >= 5:
+            keywords_by_relevance['medium'].append(kw)
+        else:
+            keywords_by_relevance['low'].append(kw)
+    
+    # Create markdown report
+    report = f"""
+## KEY SKILLS ANALYSIS
+
+### Must-Have Skills (High Relevance)
+{"".join([f"- **{kw['keyword']}** - {kw['context']}\n" for kw in keywords_by_relevance['high']])}
+
+### Nice-to-Have Skills (Medium Relevance)
+{"".join([f"- **{kw['keyword']}** - {kw['context']}\n" for kw in keywords_by_relevance['medium']])}
+
+## RECOMMENDED IMPROVEMENTS
+
+1. Ensure your resume includes the must-have skills listed above
+2. Use exact keyword matches for technical skills to pass ATS screening
+3. Quantify achievements related to these skills with specific metrics
+4. Highlight experiences that demonstrate proficiency in these areas
+5. Consider creating a skills section that prominently features these keywords
+"""
+    return report
 
 @app.route('/api/download/<resume_id>/<format>', methods=['GET'])
 def download_resume(resume_id: str, format: str) -> Union[Tuple[Dict[str, Any], int], Any]:
