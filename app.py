@@ -47,6 +47,12 @@ CORS(app, resources={
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "expose_headers": ["Content-Type", "X-Total-Count"]
+    },
+    r"/optimize": {
+        "origins": FRONTEND_URL,
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "expose_headers": ["Content-Type", "X-Total-Count"]
     }
 })
 
@@ -465,6 +471,10 @@ def download_resume(resume_id: str, format: str) -> Union[Tuple[Dict[str, Any], 
 @app.route('/optimize', methods=['POST', 'OPTIONS'])
 def optimize_resume_alt():
     """Alternative endpoint for optimize - mirrors /api/optimize"""
+    if request.method == 'OPTIONS':
+        # Handle OPTIONS request (CORS preflight)
+        response = jsonify({'success': True})
+        return response
     return optimize_resume()
 
 # ASGI wrapper for deployment
